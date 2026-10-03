@@ -35,6 +35,9 @@ button{border:0;border-radius:8px;padding:10px 13px;font-weight:700;cursor:point
 .report{margin-top:16px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px}.report h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin:15px 0 7px}.report p,.report li{font-size:12px;line-height:1.5}
 .footer{font-size:10px;color:var(--muted);padding:18px 0 5px;line-height:1.5}.submitrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}.submitmsg{font-size:11px;font-weight:700}.submitmsg.ok{color:#237a4b}.submitmsg.err{color:#8b3434}
 .mustdo{border:2px solid #6840b8;background:#f7f4fc;border-radius:10px;padding:12px;margin:12px 0;box-shadow:0 0 0 3px #6840b812}.mustdo label{color:#3f286f!important}.mustdo .requiredtag{display:inline-block;font-size:9px;font-weight:900;letter-spacing:.08em;background:#6840b8;color:#fff;border-radius:999px;padding:4px 7px;margin-bottom:8px}.postdecision{border-color:#6840b8;background:#f7f4fc;box-shadow:0 0 0 3px #6840b812}.postdecision .requiredtag{background:#6840b8}.submitcritical{border:2px solid #6840b8!important;background:#f7f4fc!important;box-shadow:0 0 0 3px #6840b812}.submitcritical h2{color:#4b2d82}.submitcritical #submitCaseBtn{font-size:14px;padding:13px 18px;background:#6840b8}
+@keyframes rdtsAttention{0%,100%{box-shadow:0 0 0 3px #6840b812}35%{box-shadow:0 0 0 7px #6840b84a}65%{box-shadow:0 0 0 4px #6840b82e}}
+.attention-pulse{animation:rdtsAttention .75s ease-in-out 3}
+
 @media(max-width:1050px){.grid{grid-template-columns:1fr}.intro{align-items:flex-start;flex-direction:column}.checks{grid-template-columns:1fr}}
 @media print{header,.intro,.grid,.footer{display:none}.wrap{padding:0}.report{border:0}.report button{display:none}}
 </style>
@@ -99,7 +102,7 @@ button{border:0;border-radius:8px;padding:10px 13px;font-weight:700;cursor:point
 </div>
 
 <section class="report" id="report"><b>Referral report</b><p>Process a patient to generate a structured report.</p></section>
-<div class="card submitcritical" style="margin-top:16px"><h2>3 · Pilot data submission · REQUIRED</h2><div class="notice info">Submit only after reviewing the generated report. The pilot database stores the coded assessment record; it is not a patient medical record.</div><div class="submitrow"><button class="primary" id="submitCaseBtn" onclick="submitPilotCase()" disabled>Submit Pilot Case</button><span id="submitMsg" class="submitmsg">Complete an assessment first.</span></div></div>
+<div class="card submitcritical" id="pilotSubmitCard" style="margin-top:16px"><h2>3 · Pilot data submission · REQUIRED</h2><div class="notice info">Submit only after reviewing the generated report. The pilot database stores the coded assessment record; it is not a patient medical record.</div><div class="submitrow"><button class="primary" id="submitCaseBtn" onclick="submitPilotCase()" disabled>Submit Pilot Case</button><span id="submitMsg" class="submitmsg">Complete an assessment first.</span></div></div>
 <div class="footer">ARRC Rare Disease Triage (ARRC-RDTS) is a research prototype for frontline recognition of unexplained phenotypes. It does not diagnose rare disease and does not replace disease-specific clinical assessment. Known infectious or chronic disease must be evaluated for explanatory sufficiency before rare-disease escalation.</div>
 </main>
 <script>
@@ -180,9 +183,21 @@ function setSignalColour(level){
  else if(level==='NOT CLASSIFIED')panel.classList.add('signal-unclassified');
  else panel.classList.add('signal-awaiting');
 }
+function guideToNext(elementId, focusId){
+ const el=document.getElementById(elementId);
+ if(!el)return;
+ el.classList.remove('attention-pulse');
+ void el.offsetWidth;
+ el.classList.add('attention-pulse');
+ setTimeout(()=>{el.scrollIntoView({behavior:'smooth',block:'center'});},120);
+ setTimeout(()=>{const f=focusId?document.getElementById(focusId):null;if(f&&!f.disabled)f.focus({preventScroll:true});},650);
+ setTimeout(()=>el.classList.remove('attention-pulse'),2800);
+}
+
 function assess(){
  const clinicianCode=document.getElementById('clinicianCode').value, caseType=document.getElementById('caseType').value, clinicianEscalate=document.getElementById('clinicianEscalate').value;
  if(!clinicianCode||!caseType||!clinicianEscalate){alert('For the pilot, select clinician code, case type and your independent escalation decision before viewing the RDTS output.');return}
+ assessedIdentity={caseId:document.getElementById('pid').value.trim(),clinicianCode,caseType,clinicianEscalate,clinicianComments:document.getElementById('clinicianComments').value.trim()};
  const inf=infections(), chronic=document.getElementById('chronic').value, ex=document.getElementById('explains').value, ind=document.getElementById('independent').value, gateway=document.getElementById('gateway').value;
  const known=inf.length||chronic;
  let flags=[],p=0;Q.forEach(q=>{if(ans(q.id)==='1'){flags.push(q);p+=q.w}});
@@ -236,25 +251,31 @@ function assess(){
     action: action
   };
   lastSubmittedCaseId = null;
-  document.getElementById('submitCaseBtn').disabled = false;
+  ['clinicianCode','caseType','clinicianEscalate','clinicianComments'].forEach(id=>document.getElementById(id).disabled=true);
+  const post=document.getElementById('clinicianPostEscalate'); post.disabled=false; post.value='';
+  document.getElementById('submitCaseBtn').disabled = true;
   document.getElementById('submitMsg').className = 'submitmsg';
-  document.getElementById('submitMsg').textContent = 'Assessment complete — ready to submit.';
+  document.getElementById('submitMsg').textContent = 'RDTS complete — record the required post-RDTS decision.';
+  guideToNext('postDecisionBox','clinicianPostEscalate');
 }
 function renderReport(level,status,gate,gateway,action,flags,stop){
  const pid=escapeHTML(document.getElementById('pid').value||'Not recorded'),age=escapeHTML(document.getElementById('age').value||'Not recorded'),sex=escapeHTML(document.getElementById('sex').value||'Not recorded'),phen=escapeHTML(document.getElementById('phenotype').value||'Not recorded');
  document.getElementById('report').innerHTML=`<button class="secondary" style="float:right" onclick="window.print()">Print report</button><h3>ARRC Rare Disease Triage Report</h3><p><b>Patient:</b> ${pid} &nbsp; <b>Age:</b> ${age} &nbsp; <b>Sex:</b> ${sex}</p><h3>Phenotype</h3><p>${phen}</p><h3>Explanatory gate</h3><p>${gate}</p><h3>Rare-disease signal</h3><p><b>${level}</b><br>${status}</p><h3>Phenotypic gateway</h3><p>${gateway}</p><h3>Red flags</h3>${stop?'<p>Rare-disease scoring stopped because the recorded condition currently explains the phenotype.</p>':flags.length?'<ul>'+flags.map(f=>`<li>${f.text}</li>`).join('')+'</ul>':'<p>No positive red flags recorded.</p>'}<h3>Recommended action</h3><p>${action}</p><p><b>SCREENING SUPPORT — NOT A DIAGNOSIS.</b> Low–Very High are provisional qualitative research categories, not probabilities.</p>`;
 }
-document.getElementById('clinicianPostEscalate').addEventListener('change',function(){if(lastAssessment&&this.value) {document.getElementById('submitCaseBtn').disabled=false;document.getElementById('submitMsg').textContent='Post-RDTS decision recorded — ready to submit.';}});
+document.getElementById('clinicianPostEscalate').addEventListener('change',function(){if(lastAssessment&&this.value) {document.getElementById('submitCaseBtn').disabled=false;document.getElementById('submitMsg').textContent='Post-RDTS decision recorded — ready to submit.';guideToNext('pilotSubmitCard','submitCaseBtn');}});
 
 async function submitPilotCase(){
   const msg=document.getElementById('submitMsg'),btn=document.getElementById('submitCaseBtn');
   if(!lastAssessment){msg.className='submitmsg err';msg.textContent='Run the RDTS assessment first.';return}
-  if(SUPABASE_API_URL.includes('YOUR_')||SUPABASE_PUBLISHABLE_KEY.includes('YOUR_')){msg.className='submitmsg err';msg.textContent='Database connection placeholders have not yet been replaced.';return}
+  if(!SUPABASE_API_URL.startsWith('https://')||SUPABASE_API_URL==='xxxxx'||SUPABASE_PUBLISHABLE_KEY==='xxxxx'||SUPABASE_PUBLISHABLE_KEY.length<20){msg.className='submitmsg err';msg.textContent='Database connection placeholders have not yet been replaced.';return}
   const caseId=document.getElementById('pid').value.trim();
-  const clinicianCode=document.getElementById('clinicianCode').value;
-  const caseType=document.getElementById('caseType').value;
-  const esc=document.getElementById('clinicianEscalate').value;
-  if(!caseId||!clinicianCode||!caseType||!esc){msg.className='submitmsg err';msg.textContent='Case ID, clinician code, case type and independent escalation decision are required.';return}
+  if(!assessedIdentity){msg.className='submitmsg err';msg.textContent='Run a new RDTS assessment first.';return}
+  if(caseId!==assessedIdentity.caseId){msg.className='submitmsg err';msg.textContent='Case ID changed after assessment. Start a new patient assessment before submitting.';return}
+  const clinicianCode=assessedIdentity.clinicianCode;
+  const caseType=assessedIdentity.caseType;
+  const esc=assessedIdentity.clinicianEscalate;
+  const postEsc=document.getElementById('clinicianPostEscalate').value;
+  if(!caseId||!clinicianCode||!caseType||!esc||!postEsc){msg.className='submitmsg err';msg.textContent='Case ID and both pre-RDTS and post-RDTS escalation decisions are required.';return}
   if(lastSubmittedCaseId===caseId){msg.className='submitmsg err';msg.textContent='This case was already submitted in this browser session.';return}
   const payload={
     case_id:caseId,clinician_code:clinicianCode,engine_version:ENGINE_VERSION,case_type:caseType,
@@ -276,7 +297,7 @@ async function submitPilotCase(){
     const r=await fetch(`${base}/rest/v1/assessments`,{method:'POST',headers:{'apikey':SUPABASE_PUBLISHABLE_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(payload)});
     if(!r.ok){let detail=await r.text();throw new Error(`${r.status} ${detail}`)}
     lastSubmittedCaseId=caseId;msg.className='submitmsg ok';msg.textContent=`Submitted successfully: ${caseId}`;
-  }catch(e){btn.disabled=false;msg.className='submitmsg err';msg.textContent='Submission failed. Check connection/security configuration. '+e.message}
+  }catch(e){btn.disabled=false;msg.className='submitmsg err';console.error(e);msg.textContent=e.message.startsWith('409')?'This clinician has already submitted an assessment for this case.':e.message.startsWith('401')||e.message.startsWith('403')?'Submission was not authorized. Check pilot access configuration.':'Submission could not be completed. Check the internet connection and try again.'}
 }
 
 function resetAll(){
@@ -288,6 +309,9 @@ function resetAll(){
  document.getElementById('flags').innerHTML='<div class="flag">No case processed.</div>';document.getElementById('report').innerHTML='<b>Referral report</b><p>Process a patient to generate a structured report.</p>';
  lastAssessment = null;
   lastSubmittedCaseId = null;
+  assessedIdentity = null;
+  ['clinicianCode','caseType','clinicianEscalate','clinicianComments'].forEach(id=>document.getElementById(id).disabled=false);
+  const post=document.getElementById('clinicianPostEscalate'); post.disabled=true; post.value='';
   document.getElementById('submitCaseBtn').disabled = true;
   document.getElementById('submitMsg').className = 'submitmsg';
   document.getElementById('submitMsg').textContent = 'Complete an assessment first.';
@@ -301,7 +325,7 @@ function loadDemo(){
  document.getElementById('systems').value='2';document.getElementById('hcp').value='3';
  ['family','development','progressive','unusual','unexplained','misdx','treatfail','objective','commonfail','gestalt'].forEach(id=>setRadio(id,'1'));
  ['earlydeath','congenital'].forEach(id=>setRadio(id,'0'));
- analysePhenotype();gateChanged();assess();
+ analysePhenotype();gateChanged();
  document.getElementById('demoBtn').textContent='Demo loaded ✓';setTimeout(()=>document.getElementById('demoBtn').textContent='Load demo',1200);
 }
 renderQ();resetAll();
