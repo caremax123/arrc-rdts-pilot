@@ -34,7 +34,7 @@ button{border:0;border-radius:8px;padding:10px 13px;font-weight:700;cursor:point
 .flag{font-size:11px;padding:8px;border-left:3px solid var(--accent);background:#f7faf9;margin:6px 0;line-height:1.4}
 .report{margin-top:16px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px}.report h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin:15px 0 7px}.report p,.report li{font-size:12px;line-height:1.5}
 .footer{font-size:10px;color:var(--muted);padding:18px 0 5px;line-height:1.5}.submitrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}.submitmsg{font-size:11px;font-weight:700}.submitmsg.ok{color:#237a4b}.submitmsg.err{color:#8b3434}
-.mustdo{border:2px solid #6840b8;background:#f7f4fc;border-radius:10px;padding:12px;margin:12px 0;box-shadow:0 0 0 3px #6840b812}.mustdo label{color:#3f286f!important}.mustdo .requiredtag{display:inline-block;font-size:9px;font-weight:900;letter-spacing:.08em;background:#6840b8;color:#fff;border-radius:999px;padding:4px 7px;margin-bottom:8px}.postdecision{border-color:#6840b8;background:#f7f4fc;box-shadow:0 0 0 3px #6840b812}.postdecision .requiredtag{background:#6840b8}.submitcritical{border:2px solid #6840b8!important;background:#f7f4fc!important;box-shadow:0 0 0 3px #6840b812}.submitcritical h2{color:#4b2d82}.submitcritical #submitCaseBtn{font-size:14px;padding:13px 18px;background:#6840b8}
+.mustdo{border:2px solid #6840b8;background:#f7f4fc;border-radius:10px;padding:12px;margin:12px 0;box-shadow:0 0 0 3px #6840b812}.workflowfocus{animation:workflowPulse 1.15s ease-in-out 2}@keyframes workflowPulse{0%,100%{box-shadow:0 0 0 3px #6840b812}50%{box-shadow:0 0 0 7px #6840b82e}}.mustdo label{color:#3f286f!important}.mustdo .requiredtag{display:inline-block;font-size:9px;font-weight:900;letter-spacing:.08em;background:#6840b8;color:#fff;border-radius:999px;padding:4px 7px;margin-bottom:8px}.postdecision{border-color:#6840b8;background:#f7f4fc;box-shadow:0 0 0 3px #6840b812}.postdecision .requiredtag{background:#6840b8}.submitcritical{border:2px solid #6840b8!important;background:#f7f4fc!important;box-shadow:0 0 0 3px #6840b812}.submitcritical h2{color:#4b2d82}.submitcritical #submitCaseBtn{font-size:14px;padding:13px 18px;background:#6840b8}
 @media(max-width:1050px){.grid{grid-template-columns:1fr}.intro{align-items:flex-start;flex-direction:column}.checks{grid-template-columns:1fr}}
 @media print{header,.intro,.grid,.footer{display:none}.wrap{padding:0}.report{border:0}.report button{display:none}}
 </style>
@@ -99,7 +99,7 @@ button{border:0;border-radius:8px;padding:10px 13px;font-weight:700;cursor:point
 </div>
 
 <section class="report" id="report"><b>Assessment report</b><p>Complete the assessment to generate the report.</p></section>
-<div class="card submitcritical" style="margin-top:16px"><h2>4 · Pilot data submission · REQUIRED</h2><div class="notice info">Submit after reviewing the assessment report.</div><div class="submitrow"><button class="primary" id="submitCaseBtn" onclick="submitPilotCase()" disabled>Submit Pilot Case</button><span id="submitMsg" class="submitmsg">Complete an assessment first.</span></div></div>
+<div class="card submitcritical" id="submitSection" style="margin-top:16px"><h2>4 · Pilot data submission · REQUIRED</h2><div class="notice info">Submit after reviewing the assessment report.</div><div class="submitrow"><button class="primary" id="submitCaseBtn" onclick="submitPilotCase()" disabled>Submit Pilot Case</button><span id="submitMsg" class="submitmsg">Complete an assessment first.</span></div></div>
 <div class="footer">PHENRA v0.4 · Research use only · Decision support, not diagnosis.</div>
 </main>
 <script>
@@ -180,6 +180,8 @@ function setSignalColour(level){
  else if(level==='NOT CLASSIFIED')panel.classList.add('signal-unclassified');
  else panel.classList.add('signal-awaiting');
 }
+function focusStep(id){const el=document.getElementById(id);if(!el)return;el.classList.remove('workflowfocus');void el.offsetWidth;el.classList.add('workflowfocus');el.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>el.classList.remove('workflowfocus'),2600)}
+
 function assess(){
  const clinicianCode=document.getElementById('clinicianCode').value, caseType=document.getElementById('caseType').value, clinicianEscalate=document.getElementById('clinicianEscalate').value;
  if(!clinicianCode||!caseType||!clinicianEscalate){alert('For the pilot, select clinician code, case type and your independent escalation decision before viewing the PHENRA output.');return}
@@ -235,16 +237,26 @@ function assess(){
     gateway: gateway,
     action: action
   };
+  assessedIdentity = {
+    clinicianCode: clinicianCode,
+    caseType: caseType,
+    clinicianEscalate: clinicianEscalate,
+    clinicianComments: document.getElementById('clinicianComments').value
+  };
   lastSubmittedCaseId = null;
-  document.getElementById('submitCaseBtn').disabled = false;
+  const post=document.getElementById('clinicianPostEscalate');
+  post.disabled=false;
+  post.value='';
+  document.getElementById('submitCaseBtn').disabled = true;
   document.getElementById('submitMsg').className = 'submitmsg';
-  document.getElementById('submitMsg').textContent = 'Assessment complete — ready to submit.';
+  document.getElementById('submitMsg').textContent = 'Record the post-PHENRA decision.';
+  setTimeout(()=>focusStep('postDecisionBox'),120);
 }
 function renderReport(level,status,gate,gateway,action,flags,stop){
  const pid=escapeHTML(document.getElementById('pid').value||'Not recorded'),age=escapeHTML(document.getElementById('age').value||'Not recorded'),sex=escapeHTML(document.getElementById('sex').value||'Not recorded'),phen=escapeHTML(document.getElementById('phenotype').value||'Not recorded');
  document.getElementById('report').innerHTML=`<button class="secondary" style="float:right" onclick="window.print()">Print report</button><h3>PHENRA v0.4 Assessment Report</h3><p><b>Case:</b> ${pid} &nbsp; <b>Age:</b> ${age} &nbsp; <b>Sex:</b> ${sex}</p><h3>Phenotype</h3><p>${phen}</p><h3>Explanatory gate</h3><p>${gate}</p><h3>Rare-disease signal</h3><p><b>${level}</b><br>${status}</p><h3>Phenotypic gateway</h3><p>${gateway}</p><h3>Red flags</h3>${stop?'<p>Rare-disease scoring stopped because the recorded condition currently explains the phenotype.</p>':flags.length?'<ul>'+flags.map(f=>`<li>${f.text}</li>`).join('')+'</ul>':'<p>No positive red flags recorded.</p>'}<h3>Recommended action</h3><p>${action}</p><p><b>SCREENING SUPPORT — NOT A DIAGNOSIS.</b> Low–Very High are provisional qualitative research categories, not probabilities.</p>`;
 }
-document.getElementById('clinicianPostEscalate').addEventListener('change',function(){if(lastAssessment&&this.value) {document.getElementById('submitCaseBtn').disabled=false;document.getElementById('submitMsg').textContent='Post-PHENRA decision recorded — ready to submit.';}});
+document.getElementById('clinicianPostEscalate').addEventListener('change',function(){if(lastAssessment&&this.value){document.getElementById('submitCaseBtn').disabled=false;document.getElementById('submitMsg').textContent='Post-PHENRA decision recorded — ready to submit.';setTimeout(()=>focusStep('submitSection'),120);}});
 
 async function submitPilotCase(){
   const msg=document.getElementById('submitMsg'),btn=document.getElementById('submitCaseBtn');
@@ -254,7 +266,10 @@ async function submitPilotCase(){
   const clinicianCode=document.getElementById('clinicianCode').value;
   const caseType=document.getElementById('caseType').value;
   const esc=document.getElementById('clinicianEscalate').value;
+  const postEsc=document.getElementById('clinicianPostEscalate').value;
   if(!caseId||!clinicianCode||!caseType||!esc){msg.className='submitmsg err';msg.textContent='Case ID, clinician code, case type and independent escalation decision are required.';return}
+  if(!postEsc){msg.className='submitmsg err';msg.textContent='Post-PHENRA escalation decision is required.';focusStep('postDecisionBox');return}
+  if(!assessedIdentity||assessedIdentity.clinicianCode!==clinicianCode||assessedIdentity.caseType!==caseType||assessedIdentity.clinicianEscalate!==esc){msg.className='submitmsg err';msg.textContent='Study metadata changed after assessment. Run PHENRA again before submission.';return}
   if(lastSubmittedCaseId===caseId){msg.className='submitmsg err';msg.textContent='This case was already submitted in this browser session.';return}
   const payload={
     case_id:caseId,clinician_code:clinicianCode,engine_version:ENGINE_VERSION,case_type:caseType,
@@ -283,6 +298,7 @@ function resetAll(){
  document.querySelectorAll('input').forEach(x=>{if(x.type==='checkbox'||x.type==='radio')x.checked=false;else x.value=''});
  document.querySelectorAll('select').forEach(x=>x.selectedIndex=0);
  document.getElementById('phenotype').value='';
+ const post=document.getElementById('clinicianPostEscalate');post.disabled=true;post.value='';
  document.getElementById('level').textContent='Awaiting screen';document.getElementById('status').textContent='NO CLASSIFICATION';setSignalColour('Awaiting screen');
  document.getElementById('gateOut').textContent='Not assessed';document.getElementById('phenOut').textContent='Not assessed';document.getElementById('gatewayOut').textContent='Not assessed';document.getElementById('discordOut').textContent='Not assessed';document.getElementById('actionOut').textContent='Complete screening.';
  document.getElementById('flags').innerHTML='<div class="flag">No case processed.</div>';document.getElementById('report').innerHTML='<b>Assessment report</b><p>Complete the assessment to generate the report.</p>';
@@ -293,17 +309,7 @@ function resetAll(){
   document.getElementById('submitMsg').textContent = 'Complete an assessment first.';
   analysePhenotype();gateChanged();
 }
-function setRadio(id,val){const x=document.querySelector(`input[name="${id}"][value="${val}"]`);if(x)x.checked=true}
-function loadDemo(){
- resetAll();
- document.getElementById('pid').value='DEMO-001';document.getElementById('age').value='8';document.getElementById('sex').value='Male';
- document.getElementById('phenotype').value='Previously ran normally. Progressive difficulty walking and rising from the floor with loss of motor ability. Maternal uncle reportedly had similar weakness.';
- document.getElementById('systems').value='2';document.getElementById('hcp').value='3';
- ['family','development','progressive','unusual','unexplained','misdx','treatfail','objective','commonfail','gestalt'].forEach(id=>setRadio(id,'1'));
- ['earlydeath','congenital'].forEach(id=>setRadio(id,'0'));
- analysePhenotype();gateChanged();assess();
- document.getElementById('demoBtn').textContent='Demo loaded ✓';setTimeout(()=>document.getElementById('demoBtn').textContent='Load demo',1200);
-}
+
 renderQ();resetAll();
 </script>
 </body></html>
